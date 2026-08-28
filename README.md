@@ -11,6 +11,7 @@ dashboard/
 ├── gpu.py              # Intel Arc (xe) temps, power, utilisation
 ├── run-dashboard.sh    # starts backend + kiosk browser
 ├── config.env.example  # machine-specific settings; copy to config.env
+├── hook.py             # manages the dofile hook in custom.lua
 ├── dashboard.lua       # Hyprland Lua config, outside the ML4W tree
 └── install.sh          # idempotent ML4W installer (--check to dry-run)
 ```
@@ -70,6 +71,31 @@ $EDITOR config.env
 Every setting has a fallback, so a missing `config.env` degrades rather
 than breaks — and a blank `DASH_TOUCH_DEVICE` simply skips the
 touch-to-output mapping, which is what you want on a non-touch panel.
+
+### Moving or removing the folder
+
+The folder can live anywhere. Only **one** thing outside it knows the path:
+the `dofile()` line `install.sh` writes into `~/.config/hypr/custom.lua`.
+
+```bash
+mv dashboard ~/somewhere/ticker
+cd ~/somewhere/ticker && ./install.sh      # repoints the hook
+```
+
+`install.sh` strips **any** existing dashboard hook by shape before writing
+the new one, so a move can't leave two. That matters: Lua's `dofile()`
+raises on a missing file, and a stale hook would take down the rest of
+`custom.lua` (your keybinds and workspace rules) along with it.
+
+To remove it entirely:
+
+```bash
+./install.sh --uninstall
+```
+
+That unhooks `custom.lua` and reverts the waybar theme. It deliberately
+leaves `config.env`, `~/.config/dashboard/spotify.json` and your custom
+waybar theme folder — delete those by hand if you want them gone.
 
 ### What is and isn't portable
 

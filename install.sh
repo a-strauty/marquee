@@ -33,6 +33,28 @@ THEME_DST="${DASH_THEME_DST:-adam-minimal}"
 CHECK=0
 [[ "${1:-}" == "--check" ]] && CHECK=1
 
+# --uninstall: unhook cleanly, so a move/removal can't leave a broken dofile
+if [[ "${1:-}" == "--uninstall" ]]; then
+    printf '\n\033[1m:: Uninstalling\033[0m\n'
+    CUSTOM="$HOME/.config/hypr/custom.lua"
+    if [[ -f "$CUSTOM" ]] && grep -q 'dashboard\.lua' "$CUSTOM"; then
+        cp -a "$CUSTOM" "$HERE/.custom.lua.bak.$(date +%Y%m%d%H%M%S)"
+        python3 "$HERE/hook.py" "$CUSTOM" --remove >/dev/null
+        printf '  removed dofile hook from ~/.config/hypr/custom.lua\n'
+    else
+        printf '  no hook present\n'
+    fi
+    if [[ -f "$ML4WSET/waybar-theme.sh" ]] && grep -q "$THEME_DST" "$ML4WSET/waybar-theme.sh"; then
+        printf '/%s;/%s' "$THEME_SRC" "$THEME_SRC" > "$ML4WSET/waybar-theme.sh"
+        printf '  waybar theme reverted to %s\n' "$THEME_SRC"
+    fi
+    hyprctl reload >/dev/null 2>&1 && printf '  hyprland reloaded\n'
+    [[ -x "$WAYBAR/launch.sh" ]] && { "$WAYBAR/launch.sh" >/dev/null 2>&1 & printf '  waybar relaunching\n'; }
+    printf '\nLeft alone: config.env, ~/.config/dashboard/spotify.json,\n'
+    printf 'and the %s waybar theme folder. Delete those by hand if you want.\n\n' "$THEME_DST"
+    exit 0
+fi
+
 # --detect: print what this machine actually has, to fill in config.env
 if [[ "${1:-}" == "--detect" ]]; then
     printf '\n\033[1m:: Detected on this machine\033[0m\n'
@@ -80,17 +102,18 @@ fi
 head_ "2/4  Hook dashboard.lua into custom.lua"
 CUSTOM="$HYPR/custom.lua"
 HOOK="dofile(\"$HERE/dashboard.lua\")"
-if [[ ! -f "$CUSTOM" ]]; then
-    would "create $CUSTOM with the dofile hook" || {
-        printf -- '-- Touch dashboard panel (%s)\n%s\n' "$MONITOR" "$HOOK" > "$CUSTOM"
-        say "created ${CUSTOM/#$HOME/\~}"
-    }
-elif grep -qF "$HOOK" "$CUSTOM"; then
+if [[ -f "$CUSTOM" ]] && grep -qF "$HOOK" "$CUSTOM" \
+   && [[ $(grep -c 'dashboard\.lua' "$CUSTOM") -eq 1 ]]; then
     say "already hooked in ${CUSTOM/#$HOME/\~}"
-elif ! would "append dofile hook to ${CUSTOM/#$HOME/\~}"; then
-    cp -a "$CUSTOM" "$HERE/.custom.lua.bak.$(ts)"
-    printf '\n-- Touch dashboard panel (%s)\n%s\n' "$MONITOR" "$HOOK" >> "$CUSTOM"
-    say "appended hook (backup in $HERE/.custom.lua.bak.*)"
+elif ! would "write dofile hook into ${CUSTOM/#$HOME/\~} (replacing any stale one)"; then
+    [[ -f "$CUSTOM" ]] && cp -a "$CUSTOM" "$HERE/.custom.lua.bak.$(ts)"
+    STALE=$(grep -c 'dashboard\.lua' "$CUSTOM" 2>/dev/null || echo 0)
+    python3 "$HERE/hook.py" "$CUSTOM" "$MONITOR" "$HOOK" >/dev/null
+    if [[ "$STALE" -gt 0 ]]; then
+        say "replaced $STALE stale hook(s) - folder moved?"
+    else
+        say "hooked into ${CUSTOM/#$HOME/\~}"
+    fi
 fi
 
 # --------------------------------------------------------------------
