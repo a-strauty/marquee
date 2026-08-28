@@ -36,6 +36,16 @@ WEATHER_ON = os.environ.get("DASH_WEATHER", "1") != "0"
 WEATHER_LOC = os.environ.get("DASH_WEATHER_LOC", "")  # blank = geolocate by IP
 UNITS_F = os.environ.get("DASH_UNITS", "F").upper() == "F"
 
+# --- burn-in mitigation -------------------------------------------------
+# The panel is an LCD, so the risk is image retention rather than true OLED
+# burn-in - but a dashboard holds the same layout for months, so it's worth
+# shifting the pixels around and easing off the luminance overnight.
+SHIFT_SECONDS = int(os.environ.get("DASH_SHIFT_SECONDS", "90"))
+SHIFT_PX = int(os.environ.get("DASH_SHIFT_PX", "10"))
+NIGHT_START = int(os.environ.get("DASH_NIGHT_START", "22"))
+NIGHT_END = int(os.environ.get("DASH_NIGHT_END", "7"))
+NIGHT_DIM = float(os.environ.get("DASH_NIGHT_DIM", "0.55"))
+
 SEP = "\x1f"
 MEDIA_FMT = SEP.join([
     "{{status}}", "{{artist}}", "{{title}}", "{{album}}",
@@ -282,7 +292,16 @@ def fetch_weather():
 
 # ---------------------------------------------------------------- sampler
 
-STATE = {"media": {}, "mic": {}, "vpn": {}, "system": {}, "weather": None, "ts": 0}
+STATE = {
+    "media": {}, "mic": {}, "vpn": {}, "system": {}, "weather": None, "ts": 0,
+    "config": {
+        "shift_seconds": SHIFT_SECONDS,
+        "shift_px": SHIFT_PX,
+        "night_start": NIGHT_START,
+        "night_end": NIGHT_END,
+        "night_dim": NIGHT_DIM,
+    },
+}
 LOCK = threading.Lock()
 PREFERRED_PLAYER = {"name": None}
 

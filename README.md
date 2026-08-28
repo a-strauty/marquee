@@ -238,6 +238,55 @@ Two caveats:
 Costs one `/proc` walk every 2s; the fd list is cached and rescanned every
 20s rather than rebuilt each tick.
 
+## Burn-in mitigation
+
+The Wisecoco is an **LCD**, not OLED — the EDID's "IPS, Inc." is the vendor
+name (Intellectual Property Solutions), not the panel technology. So the
+realistic risk is **image retention**, which is usually temporary, rather
+than permanent burn-in. Still worth mitigating, because a dashboard holds
+the same layout for months.
+
+Two measures, both in the page itself — no daemons, no extra packages:
+
+**Pixel shift.** The whole `.grid` translates a few pixels on a slow orbit,
+so no element sits on the same subpixels indefinitely. Adjacent steps are
+close together and the transform has a 2.5s ease, so it never reads as a
+glitch. Offsets are rounded to **integer pixels** — fractional ones blur
+text through subpixel antialiasing. Vertical travel is 40% of horizontal,
+since the panel is only 1100px tall.
+
+**Night dim.** Luminance eases down overnight via a CSS `brightness()`
+filter, ramped over 45s so the change is imperceptible. The window may wrap
+past midnight (22 → 7).
+
+```ini
+DASH_SHIFT_SECONDS="90"    # seconds between nudges
+DASH_SHIFT_PX="10"         # max offset
+DASH_NIGHT_START="22"
+DASH_NIGHT_END="7"
+DASH_NIGHT_DIM="0.55"      # 1 disables dimming
+```
+
+### What was considered and rejected
+
+- **Scheduled DPMS blanking** — deliberately not done; the panel is meant to
+  be readable at a glance at any hour.
+- **Backlight dimming via `brightnessctl`** — impossible here. There is no
+  `/sys/class/backlight` on this machine, so `brightnessctl` only sees
+  keyboard LEDs. Note the stock ML4W `hypridle.conf` runs
+  `brightnessctl -s set 10` at 8 minutes: **that listener is a no-op**, left
+  over from a laptop-oriented default.
+- **DDC/CI via `ddcutil`** — would control real backlight, but it isn't
+  installed and cheap bar panels often don't implement DDC. Worth one test
+  if you want physical brightness control rather than a software filter.
+- **Periodic inversion wash** — an OLED technique, unnecessary for LCD.
+
+### Interaction with hyprlock
+
+`hyprlock` covers every output by design and can't exclude one, so the
+10-minute `loginctl lock-session` still hides the panel. For retention that
+*helps* — the lock screen puts different content on those pixels.
+
 ## ML4W integration (update-safe)
 
 > **ML4W 2.10.1 runs Hyprland's Lua config**, not the `.conf` tree.
@@ -309,20 +358,19 @@ end
 default**. Pre-existing, unrelated to the dashboard, and left alone — but
 probably not what was intended.
 
-## Open decision: idle / lock
+## Idle / lock policy (decided)
 
-`hypridle` dims at 8 min and locks at 10 min across **all** outputs, so the
-panel goes dark with everything else. Options:
+The panel **stays on** — no scheduled DPMS blanking, no idle blanking. It is
+meant to be readable at a glance at any hour, and the burn-in measures above
+exist precisely so that's safe on an LCD.
 
-- **Leave as-is** — panel sleeps with the desk. Safest.
-- **Inhibit while playing** — add `windowrule = idleinhibit fullscreen, class:^(dashkiosk)$`
-  to `dashboard.lua` (as `idle_inhibit`); keeps the panel awake but suppresses lock machine-wide.
-- **Panel-only DPMS** — a hypridle listener that blanks DP-1/DP-2 only,
-  leaving HDMI-A-3 lit. Most work, best result. `hypridle.conf` **is** in the
-  restore list, so editing it is safe. Note hypridle still uses the classic
-  syntax and calls `hyprctl dispatch`, which now needs the Lua form.
+`hypridle` still locks the session at 10 minutes, which covers the panel too.
+That is left in place deliberately: it's a security boundary, and for image
+retention it helps rather than hurts.
 
-I did not pick one for you.
+The stock `hypridle.conf` also dims at 8 minutes via `brightnessctl` — a
+**no-op on this machine** (no `/sys/class/backlight`). Harmless, but don't
+mistake it for working brightness control.
 
 ## Running it
 

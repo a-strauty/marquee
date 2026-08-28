@@ -23,6 +23,10 @@
   .grid{
     display:grid; grid-template-columns:880px 1.15fr 1fr 600px;
     gap:20px; height:100vh; padding:20px;
+    /* burn-in mitigation: slow pixel nudge + overnight luminance easing.
+       Long transitions keep both imperceptible. */
+    will-change:transform;
+    transition:transform 2.5s ease-in-out, filter 45s linear;
   }
   .panel{
     background:var(--panel); border:1px solid var(--line); border-radius:var(--r);
@@ -554,12 +558,52 @@ async function pollSpotify(){
 }
 pollSpotify(); setInterval(pollSpotify, 60000);
 
+/* ---- burn-in mitigation ----
+   LCD image retention, not OLED burn-in, but the layout is static for
+   months so it's worth moving it around and easing off at night. */
+let burnCfg = {shift_seconds:90, shift_px:10, night_start:22, night_end:7, night_dim:0.55};
+
+// A slow orbit rather than a random jump: adjacent steps are close together
+// so the movement never reads as a glitch.
+const SHIFT_PATH = [[0,0],[0.6,0.2],[1,0],[0.6,-0.2],[0,0],[-0.6,0.2],[-1,0],[-0.6,-0.2]];
+let shiftIdx = 0;
+
+function isNight(){
+  const h = new Date().getHours();
+  const {night_start:a, night_end:b} = burnCfg;
+  return a === b ? false : (a < b ? (h >= a && h < b) : (h >= a || h < b));
+}
+
+function applyBurnIn(){
+  const grid = document.querySelector('.grid');
+  if (!grid) return;
+  const [fx, fy] = SHIFT_PATH[shiftIdx % SHIFT_PATH.length];
+  const px = burnCfg.shift_px;
+  // integer pixels only - fractional offsets blur text via subpixel AA
+  const x = Math.round(fx * px), y = Math.round(fy * px * 0.4);
+  grid.style.transform = `translate(${x}px, ${y}px)`;
+  grid.style.filter = isNight() ? `brightness(${burnCfg.night_dim})` : 'brightness(1)';
+}
+
+function stepShift(){ shiftIdx++; applyBurnIn(); }
+let shiftTimer = setInterval(stepShift, burnCfg.shift_seconds * 1000);
+applyBurnIn();
+setInterval(applyBurnIn, 60000);   // re-evaluate the night window each minute
+
 /* ---- poll ---- */
 async function poll(){
   try{
     const r = await fetch('/api/state', {cache:'no-store'});
     const s = await r.json();
     lastPoll = performance.now();
+    if (s.config && s.config.shift_seconds !== burnCfg.shift_seconds){
+      burnCfg = Object.assign(burnCfg, s.config);
+      clearInterval(shiftTimer);
+      shiftTimer = setInterval(stepShift, burnCfg.shift_seconds * 1000);
+      applyBurnIn();
+    } else if (s.config) {
+      burnCfg = Object.assign(burnCfg, s.config);
+    }
     // Each renderer is isolated: a throw in one must not blank the others,
     // and must not be mistaken for the backend being unreachable.
     for (const [fn, arg] of [[renderMedia, s.media], [renderSystem, s.system],
