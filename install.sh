@@ -101,7 +101,9 @@ fi
 # --------------------------------------------------------------------
 head_ "2/4  Hook dashboard.lua into custom.lua"
 CUSTOM="$HYPR/custom.lua"
-HOOK="dofile(\"$HERE/dashboard.lua\")"
+# pcall so a moved or deleted dashboard folder degrades quietly instead
+# of raising a Lua config error on every Hyprland reload.
+HOOK="if not pcall(dofile, \"$HERE/dashboard.lua\") then print(\"[dashboard] not loaded\") end"
 if [[ -f "$CUSTOM" ]] && grep -qF "$HOOK" "$CUSTOM" \
    && [[ $(grep -c 'dashboard\.lua' "$CUSTOM") -eq 1 ]]; then
     say "already hooked in ${CUSTOM/#$HOME/\~}"

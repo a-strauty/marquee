@@ -16,7 +16,7 @@ import pathlib
 import re
 import sys
 
-HOOK_RE = re.compile(r'dofile\(\s*["\'].*dashboard\.lua["\']\s*\)')
+HOOK_RE = re.compile(r'["\'][^"\']*dashboard\.lua["\']')
 COMMENT_RE = re.compile(r'^\s*--\s*Touch dashboard panel\b')
 
 
