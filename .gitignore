@@ -1,0 +1,10 @@
+# Machine-specific config - copy config.env.example instead
+config.env
+
+# Runtime artefacts
+.server.log
+__pycache__/
+*.pyc
+
+# Backups install.sh takes before touching your Hyprland config
+.custom.lua.bak.*

@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Panel</title>
+<style>
+  :root{
+    --bg:#0a0c0f; --panel:#141920; --panel2:#1b222b; --line:#252d38;
+    --fg:#e8eef6; --dim:#8b98a8; --faint:#5b6775;
+    --accent:#4dd4ac; --accent2:#5aa9f7;
+    --warn:#f5a623; --danger:#ff5c6c; --live:#4dd4ac;
+    --r:18px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overflow:hidden}
+  body{
+    background:var(--bg); color:var(--fg);
+    font-family:"Inter","SF Pro Display",system-ui,-apple-system,"Segoe UI",sans-serif;
+    font-variant-numeric:tabular-nums; user-select:none; cursor:none;
+  }
+  body.showcursor{cursor:default}
+  .grid{
+    display:grid; grid-template-columns:880px 1.15fr 1fr 600px;
+    gap:20px; height:100vh; padding:20px;
+  }
+  .panel{
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--r);
+    padding:26px 30px; display:flex; flex-direction:column; min-width:0; overflow:hidden;
+  }
+  .label{font-size:19px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint); font-weight:600}
+  .row{display:flex; align-items:center; gap:14px; min-width:0}
+  .grow{flex:1; min-width:0}
+  .ellip{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+
+  /* ---- clock / weather ---- */
+  #clock{font-size:225px; line-height:.92; font-weight:250; letter-spacing:-.02em}
+  #clock .sec{font-size:78px; color:var(--faint); font-weight:300; margin-left:10px}
+  #date{font-size:40px; color:var(--dim); margin-top:12px; font-weight:400}
+  #wx{margin-top:16px; border-top:1px solid var(--line); padding-top:18px; flex:none}
+
+  /* ---- spotify library ---- */
+  #lib{flex:1; display:flex; flex-direction:column; min-height:0;
+       margin-top:18px; border-top:1px solid var(--line); padding-top:16px}
+  .libhead{display:flex; align-items:center; gap:12px; margin-bottom:12px; flex:none}
+  .tabs{display:flex; gap:8px; margin-left:auto}
+  .tab{padding:9px 20px; border-radius:999px; background:var(--panel2);
+       border:1px solid var(--line); font-size:20px; color:var(--dim)}
+  .tab.on{background:var(--accent); color:#04150f; border-color:var(--accent); font-weight:600}
+  #liblist{flex:1; overflow-y:auto; overscroll-behavior:contain; min-height:0; padding-right:6px}
+  #liblist::-webkit-scrollbar{width:10px}
+  #liblist::-webkit-scrollbar-track{background:transparent}
+  #liblist::-webkit-scrollbar-thumb{background:var(--line); border-radius:999px}
+  .librow{display:flex; align-items:center; gap:16px; padding:9px 8px; border-radius:12px}
+  .librow:active{background:var(--panel2)}
+  .librow .libart{width:58px; height:58px; border-radius:8px; object-fit:cover;
+                  background:var(--panel2); flex:none}
+  /* Liked Songs has no cover from the API - give it the familiar gradient tile */
+  /* needs .librow to outrank `.librow .libart`, which sets the flat bg */
+  .librow .libheart{display:grid; place-items:center;
+            background:linear-gradient(135deg,#3c0adb 0%,#6d28d9 50%,#1fb89b 100%)}
+  .librow .libheart svg{width:30px; height:30px; fill:#fff;
+                filter:drop-shadow(0 1px 2px rgba(0,0,0,.45))}
+  .libtxt{min-width:0}
+  .libname{font-size:25px; font-weight:500}
+  .libsub{font-size:19px; color:var(--faint)}
+  .libmsg{color:var(--faint); font-size:21px; padding:12px 8px; line-height:1.55}
+  .libmsg b{color:var(--accent2); font-weight:500}
+  #wxtemp{font-size:92px; font-weight:300; line-height:1}
+  #wxdesc{font-size:31px; color:var(--dim)}
+  #wxmeta{font-size:24px; color:var(--faint); margin-top:8px}
+
+  /* ---- media ---- */
+  /* flex:none so the row is exactly the cover's height - with flex:1 it
+     absorbed the panel's slack and the centred text sank below the art */
+  .media-top{display:flex; gap:28px; align-items:stretch; flex:none}
+  #art{
+    width:340px; height:340px; flex:none; border-radius:14px; object-fit:cover;
+    background:var(--panel2); border:1px solid var(--line);
+  }
+  #art.empty{display:flex}
+  .media-meta{display:flex; flex-direction:column; justify-content:center;
+              min-width:0; gap:10px; overflow:hidden}
+  #title{font-size:56px; font-weight:600; line-height:1.1;
+         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
+  #artist{font-size:38px; color:var(--dim)}
+  #album{font-size:27px; color:var(--faint)}
+  .players{display:flex; gap:10px; margin-top:8px; flex-wrap:wrap}
+  .chip{
+    padding:11px 22px; border-radius:999px; background:var(--panel2);
+    border:1px solid var(--line); font-size:22px; color:var(--dim);
+  }
+  .chip.on{background:var(--accent); color:#04150f; border-color:var(--accent); font-weight:600}
+  #seek{height:16px; border-radius:999px; background:var(--panel2); margin-top:auto;
+        position:relative; overflow:hidden; border:1px solid var(--line)}
+  #seekfill{position:absolute; inset:0 auto 0 0; width:0%; background:var(--accent); border-radius:999px}
+  .times{display:flex; justify-content:space-between; font-size:25px; color:var(--faint); margin-top:10px}
+  .transport{display:flex; align-items:center; gap:22px; margin-top:18px}
+  .tbtn{
+    width:104px; height:104px; border-radius:50%; background:var(--panel2);
+    border:1px solid var(--line); display:grid; place-items:center; flex:none;
+  }
+  .tbtn.main{width:126px; height:126px; background:var(--accent); border-color:var(--accent)}
+  .tbtn.main svg{fill:#04150f}
+  .tbtn svg{width:44px; height:44px; fill:var(--fg)}
+  .tbtn.main svg{width:56px; height:56px}
+  .tbtn:active{transform:scale(.93)}
+  #vol{flex:1; height:16px; border-radius:999px; background:var(--panel2);
+       position:relative; overflow:hidden; border:1px solid var(--line); min-width:80px}
+  #volfill{position:absolute; inset:0 auto 0 0; background:var(--accent2)}
+
+  /* ---- system ---- */
+  .stats{display:flex; flex-direction:column; gap:15px; flex:1; margin-top:16px; min-height:0}
+  .stat{display:flex; flex-direction:column; gap:7px}
+  .stat .row{font-size:26px}
+  .stat .k{color:var(--dim)} .stat .v{margin-left:auto; font-weight:600}
+  .bar{height:13px; border-radius:999px; background:var(--panel2); overflow:hidden}
+  .bar i{display:block; height:100%; width:0%; background:var(--accent2); border-radius:999px;
+         transition:width .4s ease}
+  .bar i.hot{background:var(--warn)} .bar i.crit{background:var(--danger)}
+  .tiles{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:auto;
+         padding-top:16px; border-top:1px solid var(--line)}
+  .tile.wide{grid-column:span 2}
+  .tile{background:var(--panel2); border-radius:12px; padding:14px 18px}
+  .tile .k{font-size:19px; color:var(--faint); text-transform:uppercase; letter-spacing:.09em}
+  .tile .v{font-size:32px; font-weight:500; margin-top:3px}
+
+  /* ---- mic + vpn ---- */
+  .col4{display:flex; flex-direction:column; gap:20px; min-height:0}
+  #mic{
+    flex:1; border-radius:var(--r); border:2px solid var(--line); background:var(--panel);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;
+    padding:20px; min-height:0;
+  }
+  #mic:active{transform:scale(.985)}
+  #mic.muted{background:#2a1216; border-color:var(--danger)}
+  #mic.live{background:#0f2620; border-color:var(--live)}
+  #micicon{width:150px; height:150px; flex:none}
+  #mic.muted #micicon{fill:var(--danger)} #mic.live #micicon{fill:var(--live)}
+  #micstate{font-size:64px; font-weight:700; letter-spacing:.03em}
+  #mic.muted #micstate{color:var(--danger)} #mic.live #micstate{color:var(--live)}
+  #micname{font-size:23px; color:var(--dim); text-align:center; max-width:100%}
+  #vpn{flex:none; border-radius:var(--r); border:1px solid var(--line); background:var(--panel); padding:22px 26px}
+  #vpn.up{border-color:var(--accent); background:#0f2620}
+  .vrow{display:flex; align-items:center; gap:12px; margin-top:12px}
+  #vdot{width:18px; height:18px; border-radius:50%; background:var(--faint); flex:none}
+  #vpn.up #vdot{background:var(--accent); box-shadow:0 0 14px var(--accent)}
+  #vname{font-size:27px; font-weight:600}
+  #vmeta{font-size:21px; color:var(--faint); margin-top:6px}
+  #vbtn{
+    margin-top:16px; width:100%; height:88px; border-radius:14px; background:var(--panel2);
+    border:1px solid var(--line); font-size:29px; font-weight:600; color:var(--fg);
+    display:grid; place-items:center;
+  }
+  #vpn.up #vbtn{background:var(--danger); border-color:var(--danger); color:#fff}
+  #vbtn:active{transform:scale(.97)}
+  #vbtn.busy{opacity:.5}
+
+  #stale{position:fixed; top:0; left:0; right:0; height:5px; background:var(--danger); display:none}
+  body.stale #stale{display:block}
+</style>
+</head>
+<body>
+<div id="stale"></div>
+<div class="grid">
+
+  <!-- 1: clock + weather -->
+  <section class="panel">
+    <div id="clock">--:--<span class="sec">--</span></div>
+    <div id="date">—</div>
+
+    <div id="lib">
+      <div class="libhead">
+        <div class="label">Library</div>
+        <div class="tabs">
+          <div class="tab on" data-tab="playlists">Playlists</div>
+          <div class="tab" data-tab="albums">Albums</div>
+        </div>
+      </div>
+      <div id="liblist"><div class="libmsg">Loading…</div></div>
+    </div>
+
+    <div id="wx">
+      <div class="label">Weather</div>
+      <div class="row" style="margin-top:10px">
+        <div id="wxtemp">--°</div>
+        <div class="grow" style="margin-left:18px">
+          <div id="wxdesc" class="ellip">—</div>
+          <div id="wxmeta">—</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2: media -->
+  <section class="panel">
+    <div class="label">Now Playing</div>
+    <div class="media-top" style="margin-top:16px">
+      <img id="art" alt="">
+      <div class="media-meta grow">
+        <div id="title" >Nothing playing</div>
+        <div id="artist" class="ellip">—</div>
+        <div id="album" class="ellip">—</div>
+        <div class="players" id="players"></div>
+      </div>
+    </div>
+    <div id="seek"><div id="seekfill"></div></div>
+    <div class="times"><span id="tpos">0:00</span><span id="tlen">0:00</span></div>
+    <div class="transport">
+      <div class="tbtn" data-act="previous"><svg viewBox="0 0 24 24"><path d="M6 6h2.5v12H6zm3.5 6l9 6V6z"/></svg></div>
+      <div class="tbtn main" id="playpause"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
+      <div class="tbtn" data-act="next"><svg viewBox="0 0 24 24"><path d="M15.5 6H18v12h-2.5zm-1 6l-9 6V6z"/></svg></div>
+      <svg viewBox="0 0 24 24" style="width:38px;height:38px;fill:var(--faint);flex:none;margin-left:8px">
+        <path d="M3 9v6h4l5 5V4L7 9zm13.5 3a4.5 4.5 0 00-2.5-4v8a4.5 4.5 0 002.5-4z"/></svg>
+      <div id="vol"><div id="volfill"></div></div>
+    </div>
+  </section>
+
+  <!-- 3: system -->
+  <section class="panel">
+    <div class="row"><div class="label grow">System</div>
+      <div class="label" id="uptime" style="letter-spacing:.06em">—</div></div>
+    <div class="stats" id="stats"></div>
+    <div class="tiles">
+      <div class="tile"><div class="k">CPU Temp</div><div class="v" id="ctemp">—</div></div>
+      <div class="tile"><div class="k">GPU Temp</div><div class="v" id="gtemp">—</div></div>
+      <div class="tile"><div class="k">GPU Power</div><div class="v" id="gpow">—</div></div>
+      <div class="tile"><div class="k">NVMe</div><div class="v" id="ntemp">—</div></div>
+      <div class="tile"><div class="k">VRAM</div><div class="v" id="vram">—</div></div>
+      <div class="tile"><div class="k">Video Eng</div><div class="v" id="gvid">—</div></div>
+      <div class="tile wide"><div class="k">Net ↓ / ↑</div><div class="v" id="net" style="font-size:26px">—</div></div>
+    </div>
+  </section>
+
+  <!-- 4: mic + vpn -->
+  <section class="col4">
+    <div id="mic">
+      <svg id="micicon" viewBox="0 0 24 24"><path id="micpath"
+        d="M12 15a3 3 0 003-3V6a3 3 0 00-6 0v6a3 3 0 003 3zm5-3a5 5 0 01-10 0H5a7 7 0 006 6.9V22h2v-3.1A7 7 0 0019 12z"/></svg>
+      <div id="micstate">—</div>
+      <div id="micname" class="ellip">—</div>
+    </div>
+    <div id="vpn">
+      <div class="label">VPN</div>
+      <div class="vrow"><div id="vdot"></div><div id="vname" class="ellip grow">—</div></div>
+      <div id="vmeta">—</div>
+      <div id="vbtn">—</div>
+    </div>
+  </section>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+/* null-safe: a renamed/removed element must never abort a whole render pass */
+const setText = (sel, val) => { const e = $(sel); if (e) e.textContent = val; };
+const post = (p, b) => fetch('/api/' + p, {
+  method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b||{})
+}).catch(()=>{});
+
+const fmtTime = s => {
+  s = Math.max(0, Math.floor(s||0));
+  const m = Math.floor(s/60), r = String(s%60).padStart(2,'0');
+  return m >= 60 ? `${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}:${r}` : `${m}:${r}`;
+};
+const fmtBytes = b => {
+  if (b >= 1e12) return (b/1099511627776).toFixed(1)+' TB';
+  if (b >= 1e9)  return (b/1073741824).toFixed(0)+' GB';
+  if (b >= 1e6)  return (b/1048576).toFixed(0)+' MB';
+  return (b/1024).toFixed(0)+' KB';
+};
+const fmtRate = b => b >= 1048576 ? (b/1048576).toFixed(1)+' MB/s'
+                   : b >= 1024 ? (b/1024).toFixed(0)+' KB/s' : Math.round(b)+' B/s';
+const barClass = p => p >= 90 ? 'crit' : p >= 75 ? 'hot' : '';
+
+/* ---- clock ticks locally, independent of the backend ---- */
+function tickClock(){
+  const d = new Date();
+  $('#clock').innerHTML = `${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`
+    + `<span class="sec">${String(d.getSeconds()).padStart(2,'0')}</span>`;
+  $('#date').textContent = d.toLocaleDateString(undefined,
+    {weekday:'long', month:'long', day:'numeric'});
+}
+setInterval(tickClock, 1000); tickClock();
+
+/* ---- media ---- */
+let media = {}, lastPoll = 0, curPlayer = null;
+
+function renderMedia(m){
+  media = m || {};
+  const has = m && m.player;
+  $('#title').textContent  = has && m.title  ? m.title  : 'Nothing playing';
+  $('#artist').textContent = has && m.artist ? m.artist : '—';
+  $('#album').textContent  = has && m.album  ? m.album  : '—';
+
+  const art = $('#art');
+  const want = has && m.art ? '/api/art?u=' + encodeURIComponent(m.art) : '';
+  if (art.dataset.src !== want){ art.dataset.src = want; art.src = want || ''; }
+  art.style.visibility = want ? 'visible' : 'hidden';
+
+  const playing = m && m.status === 'Playing';
+  $('#playpause').innerHTML = playing
+    ? '<svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>'
+    : '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+
+  const box = $('#players');
+  const sig = (m.players||[]).join('|') + '::' + m.player;
+  if (box.dataset.sig !== sig){
+    box.dataset.sig = sig;
+    box.innerHTML = '';
+    (m.players||[]).forEach(p => {
+      const c = document.createElement('div');
+      c.className = 'chip' + (p === m.player ? ' on' : '');
+      c.textContent = p.split('.')[0];
+      c.onclick = () => { curPlayer = p; post('media/select', {player:p}); };
+      box.appendChild(c);
+    });
+  }
+  const v = m.volume;
+  $('#volfill').style.width = (v == null ? 0 : v) + '%';
+  $('#vol').style.opacity = v == null ? .3 : 1;
+}
+
+/* interpolate playback position between 1 Hz polls */
+function paintSeek(){
+  const m = media, seek = $('#seek');
+  if (!m || !m.player){
+    $('#seekfill').style.width = '0%';
+    $('#tpos').textContent = '0:00'; $('#tlen').textContent = '0:00';
+    seek.style.opacity = .3;
+    return;
+  }
+  let pos = m.position || 0;
+  if (m.status === 'Playing') pos += (performance.now() - lastPoll)/1000;
+
+  if (m.length > 0){
+    pos = Math.min(pos, m.length);
+    $('#seekfill').style.width = (pos / m.length * 100).toFixed(2) + '%';
+    $('#tlen').textContent = fmtTime(m.length);
+    seek.style.opacity = 1;
+  } else {
+    // Zen/Firefox intermittently omit mpris:length. Show elapsed only and
+    // dim the bar rather than rendering a dead 0:00 / 0:00 track.
+    $('#seekfill').style.width = '0%';
+    $('#tlen').textContent = '--:--';
+    seek.style.opacity = .3;
+  }
+  $('#tpos').textContent = fmtTime(pos);
+}
+setInterval(paintSeek, 250);
+
+document.querySelectorAll('.tbtn[data-act]').forEach(b =>
+  b.onclick = () => post('media/'+b.dataset.act, {player: media.player}));
+$('#playpause').onclick = () => post('media/play-pause', {player: media.player});
+
+const frac = (el, ev) => {
+  const r = el.getBoundingClientRect();
+  const x = (ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left;
+  return Math.max(0, Math.min(1, x / r.width));
+};
+$('#seek').onclick = e => {
+  if (!media.length) return;
+  const p = frac($('#seek'), e) * media.length;
+  media.position = p; lastPoll = performance.now(); paintSeek();
+  post('media/seek', {player: media.player, position: p});
+};
+$('#vol').onclick = e => {
+  const f = frac($('#vol'), e);
+  $('#volfill').style.width = (f*100)+'%';
+  post('media/volume', {player: media.player, volume: f});
+};
+
+/* ---- system ---- */
+function renderSystem(s){
+  if (!s || !s.disks) return;
+  const g = s.gpu || {};
+  const rows = [
+    {k:'CPU', v:s.cpu.toFixed(0)+'%', p:s.cpu},
+    {k:'GPU', v: g.usage == null ? 'n/a' : g.usage.toFixed(0)+'%', p: g.usage || 0},
+    {k:'Memory', v:`${fmtBytes(s.mem_used)} / ${fmtBytes(s.mem_total)}`, p:s.mem_pct},
+    ...s.disks.map(d => ({k:d.path, v:`${d.pct}%  ·  ${fmtBytes(d.total-d.used)} free`, p:d.pct})),
+  ];
+  const box = $('#stats');
+  if (box.children.length !== rows.length){
+    box.innerHTML = rows.map(() =>
+      `<div class="stat"><div class="row"><span class="k"></span><span class="v"></span></div>
+       <div class="bar"><i></i></div></div>`).join('');
+  }
+  rows.forEach((r,i) => {
+    const el = box.children[i];
+    el.querySelector('.k').textContent = r.k;
+    el.querySelector('.v').textContent = r.v;
+    const bar = el.querySelector('i');
+    bar.style.width = Math.min(100, r.p) + '%';
+    bar.className = barClass(r.p);
+  });
+
+  setText('#ctemp', s.cpu_temp != null ? s.cpu_temp.toFixed(0)+'°C' : '—');
+  setText('#ntemp', s.nvme_temp != null ? s.nvme_temp.toFixed(0)+'°C' : '—');
+  setText('#gtemp', g.temp  != null ? g.temp.toFixed(0)+'°C' : '—');
+  setText('#gpow',  g.power != null ? g.power.toFixed(0)+' W' : '—');
+  setText('#gvid',  g.video != null ? g.video.toFixed(0)+'%'  : '—');
+  setText('#vram',  g.vram_used ? fmtBytes(g.vram_used) : '—');
+  setText('#net', `${fmtRate(s.net.rx)} / ${fmtRate(s.net.tx)}`);
+  const h = Math.floor(s.uptime/3600), d = Math.floor(h/24);
+  setText('#uptime', 'up ' + (d >= 1 ? `${d}d ${h%24}h` : `${h}h ${Math.floor(s.uptime%3600/60)}m`));
+}
+
+/* ---- mic ---- */
+let micSources = [], micIdx = 0;
+function renderMic(m){
+  if (!m) return;
+  const el = $('#mic');
+  el.className = m.muted ? 'muted' : 'live';
+  $('#micstate').textContent = m.muted ? 'MUTED' : 'LIVE';
+  $('#micname').textContent = m.label + (m.volume != null ? `  ·  ${m.volume}%` : '');
+  micSources = m.sources || [];
+  micIdx = Math.max(0, micSources.findIndex(s => s.default));
+  $('#micpath').setAttribute('d', m.muted
+    ? 'M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zM4.3 3L3 4.3l6 6V12a3 3 0 003 3c.24 0 .47-.03.7-.08l1.66 1.66A4.9 4.9 0 0112 17a5 5 0 01-5-5H5a7 7 0 006 6.9V22h2v-3.1a6.9 6.9 0 002.31-.79L19.7 21 21 19.7 4.3 3zM15 5.9V12l-1.44-1.44V5.9a1.5 1.5 0 013 0z'
+    : 'M12 15a3 3 0 003-3V6a3 3 0 00-6 0v6a3 3 0 003 3zm5-3a5 5 0 01-10 0H5a7 7 0 006 6.9V22h2v-3.1A7 7 0 0019 12z');
+}
+/* tap = mute toggle; long-press = cycle input device */
+let micTimer = null, micLong = false;
+const micStart = () => { micLong = false; micTimer = setTimeout(() => {
+  micLong = true;
+  if (micSources.length > 1){
+    micIdx = (micIdx + 1) % micSources.length;
+    post('mic/select', {source: micSources[micIdx].name});
+    $('#micname').textContent = micSources[micIdx].desc;
+  }
+}, 650); };
+const micEnd = () => { clearTimeout(micTimer); if (!micLong) post('mic/toggle'); };
+$('#mic').addEventListener('pointerdown', micStart);
+$('#mic').addEventListener('pointerup', micEnd);
+$('#mic').addEventListener('pointercancel', () => clearTimeout(micTimer));
+
+/* ---- vpn ---- */
+let vpn = {};
+function renderVpn(v){
+  vpn = v || {};
+  const el = $('#vpn'), profs = v.profiles || [];
+  const p = profs.find(x => x.up) || profs[0];
+  el.className = v.active ? 'up' : '';
+  $('#vname').textContent = p ? p.name : 'No VPN profile';
+  $('#vmeta').textContent = v.active ? (v.ip ? 'Connected · ' + v.ip : 'Connected')
+                                     : (p ? 'Disconnected' : '—');
+  const btn = $('#vbtn');
+  if (!btn.classList.contains('busy')) btn.textContent = p ? (v.active ? 'Disconnect' : 'Connect') : '—';
+  btn.style.display = p ? 'grid' : 'none';
+}
+$('#vbtn').onclick = async () => {
+  const profs = vpn.profiles || [];
+  const p = profs.find(x => x.up) || profs[0];
+  if (!p) return;
+  const btn = $('#vbtn');
+  btn.classList.add('busy');
+  btn.textContent = vpn.active ? 'Disconnecting…' : 'Connecting…';
+  await post('vpn/' + (vpn.active ? 'down' : 'up'), {name: p.name});
+  setTimeout(() => btn.classList.remove('busy'), 1200);
+};
+
+/* ---- weather ---- */
+function renderWeather(w){
+  if (!w){ $('#wxdesc').textContent = 'unavailable'; return; }
+  $('#wxtemp').textContent = w.temp + '°';
+  $('#wxdesc').textContent = w.desc;
+  $('#wxmeta').textContent =
+    `H ${w.hi}°  L ${w.lo}°   ·   ${w.humidity}% RH   ·   ${w.wind} ${w.unit==='F'?'mph':'km/h'}`
+    + (w.place ? '   ·   ' + w.place : '');
+}
+
+/* ---- spotify library ---- */
+let libTab = 'playlists', libData = null;
+
+const libMsg = html => { $('#liblist').innerHTML = `<div class="libmsg">${html}</div>`; };
+
+/* green flash on success, red hold on failure - the DBus call can be a
+   silent no-op, so the UI must not imply success it can't confirm. */
+function flashRow(row, ok){
+  row.style.background = ok ? 'var(--accent)' : 'var(--danger)';
+  setTimeout(() => { row.style.background = ''; }, ok ? 260 : 1100);
+}
+
+function renderLib(){
+  if (!libData) return;
+  const items = libTab === 'albums'
+    ? (libData.albums || [])
+    : [libData.liked, ...(libData.playlists || [])].filter(Boolean);
+
+  if (!items.length){ libMsg('Nothing here yet.'); return; }
+
+  const box = $('#liblist');
+  const sig = libTab + '::' + items.length + '::' + (items[0] && items[0].uri);
+  if (box.dataset.sig === sig) return;   // avoid nuking scroll position
+  box.dataset.sig = sig;
+
+  box.innerHTML = '';
+  items.forEach(it => {
+    const row = document.createElement('div');
+    row.className = 'librow';
+    const sub = it.count ? `${it.count} track${it.count === 1 ? '' : 's'}` : '';
+    const art = it.kind === 'liked'
+      ? `<div class="libart libheart"><svg viewBox="0 0 24 24"><path d="M12 21s-8-5.1-8-10.4A4.7 4.7 0 0 1 12 7a4.7 4.7 0 0 1 8 3.6C20 15.9 12 21 12 21z"/></svg></div>`
+      : `<img class="libart" loading="lazy" src="${it.art || ''}" alt="">`;
+    row.innerHTML =
+      art +
+      `<div class="libtxt grow">` +
+        `<div class="libname ellip">${it.name}</div>` +
+        `<div class="libsub ellip">${[sub, it.owner].filter(Boolean).join('  ·  ')}</div>` +
+      `</div>`;
+    row.onclick = async () => {
+      if (!it.uri){ flashRow(row, false); return; }
+      row.style.background = 'var(--accent)';
+      let ok = false;
+      try {
+        const r = await fetch('/api/spotify/play', {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ uri: it.uri })
+        });
+        ok = !!(await r.json()).ok;
+      } catch (e) { ok = false; }
+      flashRow(row, ok);
+    };
+    box.appendChild(row);
+  });
+}
+
+document.querySelectorAll('.tab').forEach(tb => tb.onclick = () => {
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === tb));
+  libTab = tb.dataset.tab;
+  $('#liblist').dataset.sig = '';
+  $('#liblist').scrollTop = 0;
+  renderLib();
+});
+
+async function pollSpotify(){
+  try{
+    const st = await (await fetch('/api/spotify/status', {cache:'no-store'})).json();
+    if (!st.configured){
+      libMsg('Spotify not set up.<br>Add a Client ID — see <b>README.md</b>.');
+      return;
+    }
+    if (!st.authorized){
+      libMsg('Not connected.<br>Open <b>/api/spotify/login</b> on this machine once to authorize.');
+      return;
+    }
+    const r = await fetch('/api/spotify/library', {cache:'no-store'});
+    if (!r.ok){ libMsg('Library unavailable.'); return; }
+    libData = await r.json();
+    renderLib();
+  }catch(e){
+    libMsg('Library error.');
+  }
+}
+pollSpotify(); setInterval(pollSpotify, 60000);
+
+/* ---- poll ---- */
+async function poll(){
+  try{
+    const r = await fetch('/api/state', {cache:'no-store'});
+    const s = await r.json();
+    lastPoll = performance.now();
+    // Each renderer is isolated: a throw in one must not blank the others,
+    // and must not be mistaken for the backend being unreachable.
+    for (const [fn, arg] of [[renderMedia, s.media], [renderSystem, s.system],
+                             [renderMic, s.mic], [renderVpn, s.vpn],
+                             [renderWeather, s.weather]]) {
+      try { fn(arg); } catch (err) { console.error('render failed:', err); }
+    }
+    document.body.classList.remove('stale');
+  }catch(e){
+    document.body.classList.add('stale');
+  }
+}
+poll(); setInterval(poll, 1000);
+
+/* kiosk hygiene: no zoom, no context menu, no drag */
+document.addEventListener('contextmenu', e => e.preventDefault());
+document.addEventListener('dragstart', e => e.preventDefault());
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('dblclick', e => e.preventDefault());
+/* show a cursor only when a real mouse moves */
+document.addEventListener('mousemove', () => {
+  document.body.classList.add('showcursor');
+  clearTimeout(window._cur);
+  window._cur = setTimeout(() => document.body.classList.remove('showcursor'), 3000);
+});
+</script>
+</body>
+</html>
