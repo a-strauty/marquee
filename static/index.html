@@ -99,6 +99,7 @@
         position:relative; overflow:hidden; border:1px solid var(--line)}
   #seekfill{position:absolute; inset:0 auto 0 0; width:0%; background:var(--accent); border-radius:999px}
   .times{display:flex; justify-content:space-between; font-size:25px; color:var(--faint); margin-top:10px}
+  #tpos.live{color:var(--danger); font-weight:600; letter-spacing:.08em}
   .transport{display:flex; align-items:center; gap:22px; margin-top:18px}
   .tbtn{
     width:104px; height:104px; border-radius:50%; background:var(--panel2);
@@ -324,9 +325,23 @@ function renderMedia(m){
   $('#vol').style.opacity = v == null ? .3 : 1;
 }
 
+/* Live streams have no real length. Zen reports a Kick stream as a 1s track
+   and keeps resetting the position, which drew a 0:00 -> 0:01 loop. No real
+   track is that short, so a tiny length means live. */
+const LIVE_MAX_S = 2;
+const isLive = m => m.length > 0 && m.length <= LIVE_MAX_S;
+
 /* interpolate playback position between 1 Hz polls */
 function paintSeek(){
   const m = media, seek = $('#seek');
+  const live = !!(m && m.player) && isLive(m);
+  $('#tpos').classList.toggle('live', live);
+  if (live){
+    $('#seekfill').style.width = '0%';
+    $('#tpos').textContent = '● LIVE'; $('#tlen').textContent = '';
+    seek.style.opacity = .3;
+    return;
+  }
   if (!m || !m.player){
     $('#seekfill').style.width = '0%';
     $('#tpos').textContent = '0:00'; $('#tlen').textContent = '0:00';
@@ -362,7 +377,7 @@ const frac = (el, ev) => {
   return Math.max(0, Math.min(1, x / r.width));
 };
 $('#seek').onclick = e => {
-  if (!media.length) return;
+  if (!media.length || isLive(media)) return;
   const p = frac($('#seek'), e) * media.length;
   media.position = p; lastPoll = performance.now(); paintSeek();
   post('media/seek', {player: media.player, position: p});
