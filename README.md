@@ -8,7 +8,7 @@ dashboard/
 ├── server.py           # stdlib-only backend + JSON API (loopback:8770)
 ├── static/index.html   # the dashboard UI, laid out for 3840x1100
 ├── spotify.py          # Spotify Web API (PKCE) + MPRIS playback
-├── gpu.py              # Intel Arc (xe) temps, power, utilisation
+├── gpu.py              # GPU temps, power, utilisation (Intel xe/i915, AMD amdgpu)
 ├── run-dashboard.sh    # starts backend + kiosk browser
 ├── config.env.example  # machine-specific settings; copy to config.env
 ├── hook.py             # manages the dofile hook in custom.lua
@@ -119,8 +119,9 @@ These are assumed rather than configurable:
   On plain waybar, set the bar's `output` by hand and ignore step 3.
 - **PipeWire** (`pactl`), **playerctl**, **NetworkManager** (`nmcli`) for the
   mic, media and VPN panels. Each degrades to `—` independently if absent.
-- **Intel GPU** (`xe`/`i915`) for the GPU stats — see below. On AMD/NVIDIA
-  the tiles read `—`; nothing crashes, but `gpu.py` needs a new backend.
+- **Intel** (`xe`/`i915`) **or AMD** (`amdgpu`) **GPU** for the GPU stats —
+  see below. On NVIDIA the tiles read `—`; nothing crashes, but `gpu.py`
+  needs a new backend.
 
 ### Layout is tuned for 3840x1100
 
@@ -205,7 +206,12 @@ trackid check.
 > Weather makes an outbound HTTPS request to `wttr.in`. Blank location means
 > wttr.in geolocates from your public IP. Set `DASH_WEATHER=0` to turn it off.
 
-## GPU stats (Intel Arc B580, `xe` driver)
+## GPU stats
+
+`gpu.py` picks its backend from the card's hwmon `name` (`xe`/`i915` or
+`amdgpu`), so there is nothing to configure.
+
+### Intel (`xe` driver, e.g. Arc B580)
 
 Utilisation comes from **DRM fdinfo**, not the PMU. The `xe` PMU needs
 `perf_event_paranoid <= 0` or `CAP_PERFMON`; fdinfo needs neither, so this
@@ -237,6 +243,37 @@ Two caveats:
 
 Costs one `/proc` walk every 2s; the fd list is cached and rescanned every
 20s rather than rebuilt each tick.
+
+### AMD (`amdgpu` driver, e.g. RX 9070 XT)
+
+amdgpu puts most of it in sysfs, which is **system-wide**, so root-owned
+GPU work counts too:
+
+| Figure | Source |
+|---|---|
+| GPU usage | `gpu_busy_percent` in the card's device dir — the headline figure |
+| VRAM | `mem_info_vram_used` (`mem_info_vram_total` also exists) |
+| Temp | hwmon `edge` — the headline temp; `mem` is returned as `vram_temp` (`junction` also exists) |
+| Power | hwmon `power1_average` in µW, `power1_input` as a fallback |
+| Video Eng | fdinfo — see below |
+
+The video engines have no sysfs counter, so they still come from fdinfo,
+where amdgpu exposes `drm-engine-<engine>` as busy nanoseconds.
+Utilisation is `Δbusy / Δwall-clock`, computed **per client**, so a client
+opening or exiting between samples can't spike or dip the figure. The tile
+shows the busiest of `dec`/`enc`/`enc_1`/`jpeg` rather than their sum,
+since they are separate hardware blocks.
+
+Two amdgpu quirks:
+
+- **VCN 4+ decodes on the unified `enc` ring**, so a video player's decode
+  counts under `enc`, not `dec`. Firefox's RDD process and
+  `mpv --hwdec=vaapi` both show up as `drm-engine-enc`.
+- **An engine line only appears once a client has used that engine**, so no
+  lines at all means idle (0%), not unknown.
+
+The same fdinfo caveats apply: only your own processes are visible, and a
+newly started player is picked up at the next 20s rescan.
 
 ## Burn-in mitigation
 
