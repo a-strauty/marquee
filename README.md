@@ -32,6 +32,34 @@ dashboard/
 - Tap a player chip → switch between Spotify / Zen
 - Tap a library row → play that playlist/album; tabs switch Playlists ↔ Albums
 
+## Apps on the panel (optional)
+
+The panel can also hold everyday apps, such as mail and chat, tiled side by side
+on a second workspace. The dashboard keeps running on its own workspace,
+and a keybind flips the panel between the two. Set it up in `config.env`:
+
+```ini
+DASH_APPS="outlook-for-linux,com.github.IsmaelMartinez.teams_for_linux"  # window classes
+DASH_APPS_WORKSPACE="comms"
+DASH_PANEL_DEFAULT="apps"          # what the panel shows at login: apps | dashboard
+DASH_TOGGLE_KEY="SUPER + ALT + M"  # empty = no keybind
+```
+
+- Windows of those classes **always** open on the apps workspace, with
+  `silent` placement: they don't switch the panel and don't take focus, so a
+  Teams pop-up can't pull you out of a game. Pop-out windows (a composed
+  email, a call window) go there too; move one with `SUPER + SHIFT + <n>`.
+- The kiosk rule is `silent` as well, so the kiosk starting at login stays
+  behind the apps when `DASH_PANEL_DEFAULT="apps"`.
+- The toggle uses `HL.Monitor:set_workspace`, which changes what the panel
+  shows without moving focus or the cursor.
+- Readability: zoom each app (`Ctrl +`) rather than scaling the panel. A
+  monitor `scale` blurs XWayland apps (outlook-for-linux is one) and shrinks
+  the kiosk's 3840x1100 layout.
+- Tile order follows launch order; `SUPER + ALT + ←/→` swaps the two tiles.
+- Changes need a `hyprctl reload`. Synthetic keypresses from `wtype` don't
+  trigger Hyprland binds, so test the toggle with the real keyboard.
+
 ## Backend API
 
 `GET /api/state` returns everything. Sampler thread refreshes at 1 Hz
