@@ -40,6 +40,7 @@
   /* ---- clock / weather ---- */
   #clock{font-size:225px; line-height:.92; font-weight:250; letter-spacing:-.02em}
   #clock .sec{font-size:78px; color:var(--faint); font-weight:300; margin-left:10px}
+  #clock .ampm{font-size:56px; color:var(--faint); font-weight:300; margin-left:14px; letter-spacing:.04em}
   #date{font-size:40px; color:var(--dim); margin-top:12px; font-weight:400}
   #wx{margin-top:16px; border-top:1px solid var(--line); padding-top:18px; flex:none}
 
@@ -280,8 +281,10 @@ const barClass = p => p >= 90 ? 'crit' : p >= 75 ? 'hot' : '';
 /* ---- clock ticks locally, independent of the backend ---- */
 function tickClock(){
   const d = new Date();
-  $('#clock').innerHTML = `${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`
-    + `<span class="sec">${String(d.getSeconds()).padStart(2,'0')}</span>`;
+  const h = d.getHours();
+  $('#clock').innerHTML = `${h % 12 || 12}:${String(d.getMinutes()).padStart(2,'0')}`
+    + `<span class="sec">${String(d.getSeconds()).padStart(2,'0')}</span>`
+    + `<span class="ampm">${h < 12 ? 'AM' : 'PM'}</span>`;
   $('#date').textContent = d.toLocaleDateString(undefined,
     {weekday:'long', month:'long', day:'numeric'});
 }
